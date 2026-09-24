@@ -29,7 +29,7 @@ function offlineShell() {
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('eggpro-shell-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{const req=event.request,url=new URL(req.url);if(req.method!=='GET'||url.origin!==self.location.origin)return;
-if(req.mode==='navigate'){event.respondWith(fetch(req).catch(()=>caches.match('/index.html')));return;}
+if(req.mode==='navigate'){event.respondWith(caches.match('/index.html').then(hit=>hit||fetch(req)));return;}
 if(url.search||!ASSETS.includes(url.pathname))return;event.respondWith(caches.match(req,{ignoreVary:true}).then(hit=>hit||fetch(req)));});`;
       (this as unknown as { emitFile(f: unknown): void }).emitFile({
         type: "asset",
@@ -43,6 +43,7 @@ export default defineTestConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   let origin = "";
   if (env.VITE_SUPABASE_URL) origin = new URL(env.VITE_SUPABASE_URL).origin;
+  if (env.VITE_API_URL) origin += " " + new URL(env.VITE_API_URL).origin;
   const csp = `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${origin}; object-src 'none'; base-uri 'self'; form-action 'self'`;
   return {
     plugins: [
@@ -60,6 +61,7 @@ export default defineTestConfig(({ mode }) => {
       },
       offlineShell(),
     ],
+    server: { proxy: { "/api": "http://127.0.0.1:3000" } },
     optimizeDeps: { entries: ["index.html"] },
     test: { include: ["tests/**/*.test.ts"] },
     build: { chunkSizeWarningLimit: 800 },

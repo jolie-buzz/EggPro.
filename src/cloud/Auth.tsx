@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Sprout, ShieldCheck, LogOut, RefreshCw, Download } from "lucide-react";
 import { supabase, localMode } from "./client";
+import {
+  apiOrigin,
+  neonAuth,
+  neonStore,
+  savedNeonSession,
+  createNeonAccount,
+  acceptNeonSession,
+} from "./neon";
 import { accountStore } from "./store";
 import {
   openOfflineDatabase,
@@ -15,6 +23,11 @@ import { App } from "../App";
 import { Backup } from "../pages/Settings";
 import { Card, Field, Form, str, errorMessage } from "../components/ui";
 import { InstallApp } from "./Install";
+const neonMode =
+  !supabase &&
+  !localMode &&
+  (!Capacitor.isNativePlatform() || Boolean(apiOrigin));
+const authClient = neonMode ? neonAuth : supabase?.auth;
 function Brand() {
   return (
     <div className="brand">
@@ -22,9 +35,10 @@ function Brand() {
     </div>
   );
 }
-// This cached identity only unlocks the same device's local copy. Supabase still
+// This cached identity only unlocks the same device's local copy. The server still
 // validates its real token on every cloud request; an expired token cannot sync.
 function cachedSession(): Session | null {
+  if (neonMode) return savedNeonSession();
   try {
     const value = JSON.parse(localStorage.getItem("eggpro-auth") ?? "null");
     return value?.user?.id && value?.access_token ? (value as Session) : null;
@@ -38,20 +52,20 @@ export function Root() {
     [recovery, setRecovery] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    if (!supabase) {
+    if (!authClient) {
       setLoading(false);
       return;
     }
     let mounted = true;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, next) => {
+    } = authClient.onAuthStateChange((event, next) => {
       if (!mounted) return;
       setSession(next ?? (event === "SIGNED_OUT" ? null : cachedSession()));
       setLoading(false);
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
-    supabase.auth
+    authClient
       .getSession()
       .then(({ data, error }) => {
         if (!mounted) return;
@@ -70,17 +84,17 @@ export function Root() {
       subscription.unsubscribe();
     };
   }, []);
-  if (localMode || (!supabase && Capacitor.isNativePlatform()))
+  if (localMode || (!authClient && Capacitor.isNativePlatform()))
     return (
       <App
         deviceNotice={
-          !supabase && Capacitor.isNativePlatform()
+          !authClient && Capacitor.isNativePlatform()
             ? "Offline edition · Cloud backup is not connected yet. Records are saved on this phone."
             : undefined
         }
       />
     );
-  if (!supabase)
+  if (!authClient)
     return (
       <main className="setup">
         <Brand />
@@ -89,7 +103,8 @@ export function Root() {
           The online connection has not been configured yet. Your farm records
           have not been changed.
         </p>
-        <p>Deployment requires the Supabase project URL and publishable key.</p>
+        <p>The cloud server connection is not configured yet.</p>
+        <InstallApp />
       </main>
     );
   if (loading)
@@ -107,7 +122,7 @@ export function Root() {
         <Form
           label="Update password"
           onSave={async (d) => {
-            const { error } = await supabase!.auth.updateUser({
+            const { error } = await authClient!.updateUser({
               password: str(d, "password"),
             });
             if (error) throw error;
@@ -132,6 +147,41 @@ export function Root() {
 function AuthScreen({ initialError }: { initialError: string }) {
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login"),
     [message, setMessage] = useState(initialError);
+  const [recoveryResult, setRecoveryResult] = useState<{
+    session: Session;
+    recoveryCode: string;
+  }>();
+  if (recoveryResult)
+    return (
+      <main className="setup">
+        <Brand />
+        <h1>Save your recovery key</h1>
+        <p>
+          Keep this key somewhere private. It lets you reset your password
+          without email. It is shown only now.
+        </p>
+        <code
+          style={{
+            display: "block",
+            overflowWrap: "anywhere",
+            padding: "20px",
+            background: "#fff",
+          }}
+        >
+          {recoveryResult.recoveryCode}
+        </code>
+        <p>
+          Anyone with this key and your email can reset your account. A password
+          reset replaces this key and signs out other sessions.
+        </p>
+        <button
+          className="primary"
+          onClick={() => acceptNeonSession(recoveryResult.session)}
+        >
+          I saved my key — open EggPro
+        </button>
+      </main>
+    );
   return (
     <main className="setup auth-screen">
       <Brand />
@@ -148,7 +198,9 @@ function AuthScreen({ initialError }: { initialError: string }) {
           ? "Sign in to open your farm on this phone."
           : mode === "signup"
             ? "One account for your records, on every phone."
-            : "We’ll email you a link to choose a new password."}
+            : neonMode
+              ? "Use your saved recovery key to choose a new password."
+              : "We’ll email you a link to choose a new password."}
       </p>
       <Card>
         <Form
@@ -158,13 +210,25 @@ function AuthScreen({ initialError }: { initialError: string }) {
               ? "Sign in"
               : mode === "signup"
                 ? "Create account"
-                : "Send reset link"
+                : neonMode
+                  ? "Reset password"
+                  : "Send reset link"
           }
           onSave={async (d) => {
             setMessage("");
             const email = str(d, "email");
+            if (neonMode && mode !== "login") {
+              setRecoveryResult(
+                await createNeonAccount(
+                  email,
+                  str(d, "password"),
+                  mode === "reset" ? str(d, "recoveryCode") : undefined,
+                ),
+              );
+              return;
+            }
             if (mode === "reset") {
-              const { error } = await supabase!.auth.resetPasswordForEmail(
+              const { error } = await authClient!.resetPasswordForEmail(
                 email,
                 Capacitor.isNativePlatform()
                   ? undefined
@@ -178,7 +242,7 @@ function AuthScreen({ initialError }: { initialError: string }) {
             }
             const password = str(d, "password");
             if (mode === "signup") {
-              const { data, error } = await supabase!.auth.signUp({
+              const { data, error } = await authClient!.signUp({
                 email,
                 password,
                 options: {
@@ -193,7 +257,7 @@ function AuthScreen({ initialError }: { initialError: string }) {
                   "Check your email to confirm your account, then return here to sign in.",
                 );
             } else {
-              const { error } = await supabase!.auth.signInWithPassword({
+              const { error } = await authClient!.signInWithPassword({
                 email,
                 password,
               });
@@ -210,15 +274,27 @@ function AuthScreen({ initialError }: { initialError: string }) {
               inputMode="email"
             />
           </Field>
-          {mode !== "reset" && (
+          {neonMode && mode === "reset" && (
+            <Field label="Recovery key">
+              <input
+                name="recoveryCode"
+                required
+                autoComplete="off"
+                minLength={32}
+                maxLength={32}
+              />
+            </Field>
+          )}
+          {(mode !== "reset" || neonMode) && (
             <Field label="Password">
               <input
                 name="password"
                 type="password"
                 required
-                minLength={mode === "signup" ? 8 : 1}
+                minLength={mode === "signup" || neonMode ? 8 : 1}
+                maxLength={128}
                 autoComplete={
-                  mode === "signup" ? "new-password" : "current-password"
+                  mode !== "login" ? "new-password" : "current-password"
                 }
               />
             </Field>
@@ -258,6 +334,12 @@ function AuthScreen({ initialError }: { initialError: string }) {
           </button>
         </div>
       </Card>
+      {neonMode && (
+        <p className="hint">
+          Your email identifies your account. Save the recovery key shown at
+          signup; email verification and password-reset emails are not enabled.
+        </p>
+      )}
       <p className="privacy">
         <ShieldCheck size={18} /> Stay signed in on this device until you log
         out. Use your own phone.
@@ -286,8 +368,15 @@ function OnlineFarm({ session }: { session: Session }) {
         });
         opened = await openOfflineDatabase(
           SQL,
-          accountStore(supabase!, session.user.id),
-          accountCache(session.user.id, import.meta.env.VITE_SUPABASE_URL),
+          neonMode
+            ? neonStore(session.user.id)
+            : accountStore(supabase!, session.user.id),
+          accountCache(
+            session.user.id,
+            neonMode
+              ? "neon:" + (apiOrigin || location.origin)
+              : import.meta.env.VITE_SUPABASE_URL,
+          ),
           controller.signal,
         );
         if (active) setConnection(opened);
@@ -356,7 +445,7 @@ function OnlineFarm({ session }: { session: Session }) {
       return;
     setBusy(true);
     try {
-      const { error } = await supabase!.auth.signOut({ scope: "local" });
+      const { error } = await authClient!.signOut({ scope: "local" });
       if (error) throw error;
     } catch (e) {
       setNotice(errorMessage(e));

@@ -1,84 +1,77 @@
 # EggPro
 
-Offline-first poultry management Android APK and installable web app for Android and iPhone. React + TypeScript on a **free Render Static Site**, with **Supabase Auth and Postgres** for account access and cloud records.
+Offline-first poultry management for Android APK and iPhone/Android PWA. The current deployment uses a **Render Node Web Service** and **Neon Postgres**. React/SQLite validate farm records locally; a private API handles accounts and cloud backup. Supabase support is retained only for existing deployments/tests.
 
-One account owns one farm. Sign in to the same account on another phone to open its records. Sessions persist and refresh automatically until logout, revoked credentials, or browser storage clearing. Installing the site does not itself copy data: the account is the source of the farm records.
+## Render + Neon deployment
 
-## Deploy on the free plans
+For the existing Render EggPro Web Service, use:
 
-1. Create a **Free** Supabase project named **EggPro**. Keep its database password private.
-2. Open **SQL Editor → New query** and run [the database migration](supabase/migrations/202609240001_eggpro.sql). It creates the farm table, owner-only row security, and the atomic save function. Run this once on the new project.
-3. In Supabase's **Connect/API settings**, copy the Project URL and **publishable key** (or legacy anon public key). Never use a secret or service-role key in this frontend.
-4. In Render, choose **New → Blueprint**, select `jolie-buzz/EggPro.` and the `main` branch. This repository includes `render.yaml`. It creates a static site, not a paid web service. Supply:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-5. Deploy. The build is `npm ci && npm run build:online`, with publish directory `dist`. The online build fails if the keys are missing or a private key/local-only mode is supplied.
-6. In **Supabase → Authentication → URL Configuration**, set **Site URL** and the allowed redirect URL to the exact Render HTTPS URL (including `/`). Keep email confirmation enabled. Use Supabase's default long-lived sessions; do not enable single-session restrictions.
-7. Configure your own SMTP provider in Supabase before opening public registrations. Supabase's default email sender is restricted and is intended for testing; email confirmation/password reset must be verified with your intended recipients.
-8. Verify the live site with a designated test account: sign in, create/import a test farm, save a record, reload, open on a second device, test owner isolation, log out, and install to the home screen. Do not describe deployment as complete until these checks pass.
+| Setting | Value |
+| --- | --- |
+| Repository | `jolie-buzz/EggPro.` |
+| Branch | `main` |
+| Build command | `npm ci && npm run build` |
+| Start command | `npm start` |
+| Health check | `/api/health` |
+| Node version | `22` |
+| Server environment variable | `DATABASE_URL` = private Neon PostgreSQL connection string |
 
-No subscription or paid add-on is required by this configuration. Free-tier quotas still apply. Supabase can pause inactive Free projects; monitor its dashboard and keep exported backups. Free-tier cloud storage is not a guarantee against every form of data loss.
+`render.yaml` describes this Node service on the free plan. Changing the file does not automatically reconfigure a service that was created manually: update its commands in Render's Settings. Do not use `yarn.start`, Vite's preview server, or a Static Site for the Neon backend.
 
-## Install on a phone
+Keep `DATABASE_URL` exclusively in Render's server environment. Never prefix it with `VITE_`, put it in a frontend bundle, or commit it. Remove old `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` settings when selecting Neon. Ordinary browser/PWA builds use the same origin for the API and need no public database settings. Neon TLS certificates are verified. The server initializes its dedicated `eggpro` schema without altering unrelated tables.
 
-Open the deployed HTTPS URL. On Android choose **Install EggPro** or the browser's **Install app** menu. On iPhone open in Safari, choose **Share → Add to Home Screen**. Use the same account on every phone that should open that farm.
+For APK builds only, set the public `VITE_API_URL=https://eggpro.onrender.com` to the deployed EggPro API. This URL contains no database credentials. Default CORS allows native Capacitor origins; `ALLOWED_ORIGINS` can override that comma-separated list. Web clients use the same origin. Authentication uses bearer tokens, not cookies.
 
-The Android APK includes its app files and opens without internet. After the first online sign-in and farm download, account records and edits are stored durably on the phone, including when an existing login token expires offline. Web installations cache the app shell and keep account data in IndexedDB. Native account data is saved in SQLite. Saved login information stays on the device until logout, removal of app storage, or invalidation by the authentication service; server access always requires valid authentication.
+After deploying, `/api/health` must return JSON with `ok: true`, `backend: neon` and `version: 3.1.0`. Verify signup, login, offline saves, reconnect, another device, and logout against the actual deployment. A successful frontend build alone does not prove the API works.
 
-Changes show **Saved on phone · waiting to sync** until acknowledged by the cloud. Sync retries while the app is open, when it returns to the foreground, and when connectivity returns. This is not an Android background service: open EggPro while connected to finish backup. A new phone needs internet for its first login and download. Unsynced edits cannot be recovered from the internet if the phone is lost or the app is uninstalled.
+Free hosting is subject to provider quotas and cold starts. An installed app can continue recording offline while its server is unavailable. Keep exported backups of important records.
 
-### Build an Android APK
+## Install on iPhone or iPad
 
-Keep application ID `com.farmtrack.app` and the original signing certificate to update the old APK without deleting its data. Version 3 uses the visible name EggPro. Export a JSON backup before installing any update; do not uninstall the old app.
+1. Open the deployed HTTPS URL in **Safari**.
+2. Tap **Share**, then **Add to Home Screen**. Depending on the Safari version, Share may be in the More menu.
+3. If shown, keep **Open as Web App** enabled, then tap **Add**.
+4. Open the **EggPro** Home Screen icon. Sign in online and wait for the farm to load before using it offline.
 
-```sh
-npm ci
-# Configure the real public Supabase settings in .env.local first.
-npm run build:online
-npx cap sync android
-cd android
-./gradlew assembleDebug
-```
+The in-app **Install EggPro on iPhone / iPad** guide explains these steps. An iPhone cannot install an Android APK. Login from Safari and login from the installed app may use separate storage, so sign in from the Home Screen app itself. There is no guarantee that an OS/browser will retain local data after uninstall, storage clearing or device loss.
 
-The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. Use the Android Studio JDK and configured Android SDK. This is a directly installable debug build; a Play Store release requires a separately managed release-signing setup.
+Android browsers offer **Install app** or **Add to Home Screen**. The Android APK bundles its own UI. App-shell assets are cached by a service worker on web/PWA; API responses and auth data are never put in its asset cache. New service-worker versions activate after older app windows are closed, avoiding replacement while the user is editing.
 
-Without Supabase settings, a native `npm run build` produces a clearly labelled **offline edition** using the existing local farm database. That APK does not offer login/cloud sync until updated with a configured build. No fake test project is included in the distributed offline edition. Render hosts the companion web app; native APKs bundle their own UI.
+## Accounts and recovery
 
-## Move records from the old APK
+One account owns one farm. Email is the account identifier; email verification and password-reset emails are **not enabled**. At signup, save the private **recovery key** shown before entering the app. Use **Forgot password?** with that key to reset the password. A reset rotates the recovery key, revokes old server sessions and retains the farm. The server stores scrypt password hashes and SHA-256 hashes of random session/recovery tokens, not plaintext passwords/tokens. Auth endpoints have durable IP rate limits.
 
-1. Keep the old offline app installed. In it choose **More → Backup & restore → Export backup**, and save the JSON file.
-2. Sign in to EggPro online. On the new farm screen choose **Import backup from the offline app**.
-3. Review the farm name and confirm the import. The records are saved on this phone. Open Account & sync and wait until they are saved on phone and cloud.
-4. Open the same account on a second phone and verify production, stock, customer balances and sales before removing the old app.
+A session is valid for 90 days of inactivity and extends when used online. Saved identity and per-account data permit later offline use; revoked/expired sessions cannot sync until login again. Logout hides the local cache but retains unsynced records for that account. Offline logout clears this device's token; if the server is unreachable it cannot immediately revoke that token server-side. Use the app on personal devices and export pending records before removing it.
 
-The compatibility marker inside JSON files remains `FarmTrack`, so earlier backups continue to import. Visible branding is EggPro. Importing replaces this phone's farm and queues it for cloud sync; export a copy first.
+## Offline saves and conflicts
 
-## Data and concurrency
+Edits commit locally first: IndexedDB on web/PWA and SQLite for native account caches. The UI shows **Saved on phone · waiting to sync** until the server acknowledges the upload. Automatic sync retries while the app is open, on reconnect, and when resumed. It is not an OS background service: reopen EggPro online to finish backup. A new phone needs internet for its first login and farm download.
 
-`eggpro_farms` holds each account's structured JSON farm document in Supabase Postgres. All 16 ledgers are retained. SQLite calculations and constraints validate edits, then each completed transaction is saved locally before the UI reports success. A per-account, per-project cache prevents one account from opening another account's local records. Logout hides that cache but retains unsynced changes for the same account's next login.
+The API derives the owner only from the authenticated session. Each save uses a transaction, per-owner lock, expected revision, and persistent request ID. A lost upload acknowledgement is recognized without applying the same revision twice. Local edits remain usable during an upload; newer edits stay pending for the next sync.
 
-Only the owner can read a cloud document. Direct client writes are revoked; the SQL function checks `auth.uid()`, locks the account and compares its revision. Persistent request IDs recognize a lost upload acknowledgement. Network requests do not block local farm editing. Local cache revisions reject stale app windows.
+If two phones edit the same old version, both whole-farm versions are retained and **Account & sync** offers review/export. Choosing phone or cloud first stores both in local Recovery backups. This is not an automatic record-by-record merge. Reload cannot discard pending records. Local cache revision checks reject stale app windows.
 
-If two phones edit the same old version, EggPro keeps both versions and requires review in **Account & sync**. Export both, then choose the entire phone or cloud version. Both are retained in local **Recovery backups** before replacement; this is not a record-by-record merge. Recovery copies must be exported before uninstalling. New cloud records are offered with **Reload cloud copy**, rather than replacing an open form. Pending phone records cannot be silently discarded by reload.
+Each account's full farm is uploaded as a structured JSON document with a 10 MB limit. This is for small farms; monitor bandwidth/storage as records grow. JSON backups retain the `FarmTrack` compatibility marker and canonical checksums.
 
-This is a small-farm document architecture: the full structured document is uploaded per sync, with a 10 MB server maximum. Monitor bandwidth/storage as records grow. Canonical checksums preserve compatibility with PostgreSQL JSONB property ordering.
+## Import the old offline APK
 
-## Local development and tests
+Before installing a cloud-enabled APK update, use **More → Backup & restore → Export backup** in the old app. Log into the new app and choose **Import backup from the offline app** during farm setup. Wait for **Saved on phone & cloud**, then verify stock, production, sales and customer balances on another device. Exporting is necessary because the old local farm and per-account cloud farm use separate stores. Do not uninstall the old app before exporting.
 
-Use Node 22 (Render configuration) and npm:
+Keep application ID `com.farmtrack.app` and the original signing certificate when updating Android. The existing downloadable `v3.0.0-offline-preview` is explicitly offline-only; it does not become cloud-enabled merely because the server is deployed.
+
+## Development and validation
 
 ```sh
 npm ci
-cp .env.example .env.local
-# Fill in public Supabase values in .env.local
-npm run dev
+# Set DATABASE_URL privately in the server process environment.
+npm run build
+npm start
+# In another terminal:
 npm run check
 ```
 
-`npm run check` runs real SQLite repository/cloud tests, Postgres RLS/RPC tests using PGlite, a production build, legacy farm browser workflows and a mocked-cloud two-phone/auth workflow. Browser mocks do not replace required live Supabase and Render verification.
+For frontend development, `npm run dev` proxies `/api` to the local server at port 3000. `VITE_LOCAL_ONLY=true npm run dev` runs the legacy offline app. Do not use this flag in deployment. Tests use SQLite, PGlite Postgres, browser workflows and Chromium/WebKit PWA checks. Install test browsers with `npx playwright install webkit` and use an installed Chrome.
 
-For the legacy offline mode only: `VITE_LOCAL_ONLY=true npm run dev`. Never set this on Render. Android is also supported as an offline-first APK. iOS native builds have not been verified.
+Android: set public `VITE_API_URL` at build time, run `npm run build`, `npx cap sync android`, then build `android` with the Android Studio JDK/SDK. A Play Store release needs separately managed release signing. iOS native builds are unverified; iPhone delivery is the PWA.
 
-## Source recovery
-
-The original local project was deleted. This repository was recovered from its local source backup and the saved custom-size patch, then updated for EggPro online. It has a new Git history; it does not replace or claim to contain the lost history.
+The project was recovered after its original source folder was deleted. This repository has a new Git history and does not contain the lost history.

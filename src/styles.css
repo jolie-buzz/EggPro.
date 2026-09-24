@@ -1130,3 +1130,10 @@ tbody tr:last-child td {
 .account-panel[open] summary { margin-bottom: 18px; }
 .install-app { margin-top: 16px; }
 .setup-account { max-width: 720px; margin: 24px auto 0; padding: 0 24px; }
+
+.install-guide { margin-top: 14px; padding: 18px; border: 1px solid #dce3d6; border-radius: 16px; background: #fff; text-align: left; }
+.install-guide h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.install-guide ol { margin: 0; padding-left: 22px; }
+.install-guide li { margin: 10px 0; line-height: 1.6; }
+.install-guide li svg { vertical-align: middle; }
+.install-app button { white-space: normal; text-align: left; min-height: 44px; }

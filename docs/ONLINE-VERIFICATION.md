@@ -19,3 +19,17 @@ The final unconfigured APK was also installed as an update without uninstalling.
 No actual Supabase project, live Render URL, or real authentication email flow was available. The required project URL/public key and applied migration are still pending. Browser access to the provider dashboards was blocked by the tool's administrator security check. Do not bypass that block. These automated/mock checks do not replace the live checklist in README.md.
 
 Once configured, validate the release against the real Supabase project with a designated test account, including signup/confirmation/reset, owner isolation, offline native restart, reconnect upload and second-device download. Sync runs while EggPro is open or resumed; it is not an OS background service.
+
+## Neon and iPhone PWA update — September 24, 2026
+
+The owner selected Neon instead of Supabase. Version 3.1 adds a private Node/Express API on Render, a separate `eggpro` Postgres schema, scrypt password hashing, hashed opaque sessions, recovery-key password resets, IP throttling and owner-scoped transactional revision checks. No private database value is built into the PWA/APK.
+
+Validation completed before push:
+
+- 33 existing unit/integration tests, 5 server tests, 5 farm browser workflows and 2 legacy Supabase browser workflows.
+- 4 production PWA checks across Chromium and WebKit: manifest/icons, shell reload with the actual asset server stopped, iPhone guide interaction and hidden install control in standalone mode. Stopping the test origin avoids a WebKit automation offline-mode navigation error and tests genuinely unavailable network transport.
+- Real Neon connection and isolated schema initialization. The supplied database had no existing user tables.
+- Local production server with the actual Neon database and a designated QA account: signup/recovery-key display, farm setup/upload, offline custom-size entry and reload, reconnect upload, another WebKit iPhone context reading the same account, persisted login, logout, and iPhone installation instructions. No messages or emails sent. QA records retained separately from real farm data.
+- Manual screenshot inspection and checks that the database password is absent from tracked files and frontend assets.
+
+Physical iPhone Home Screen installation has not been performed by automation. Real Render API deployment must still be verified; the local-server/real-database result is not a claim that Render's current Start Command has been changed. For a manually created Web Service, set `npm start` and server-only `DATABASE_URL` in Render. The published 3.0 APK remains an offline preview.

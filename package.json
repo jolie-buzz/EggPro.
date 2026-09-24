@@ -1,7 +1,7 @@
 {
   "name": "eggpro",
   "private": true,
-  "version": "3.0.0",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -13,12 +13,14 @@
     "android": "npm run build && cap sync android && cap open android",
     "test:e2e": "playwright test",
     "format": "prettier --write src tests *.ts *.json *.html docs README.md",
-    "check": "npm test && npm run build && npm run test:e2e && npm run test:cloud && npm run test:pwa",
+    "check": "npm test && npm run test:neon && npm run build && npm run test:e2e && npm run test:cloud && npm run test:pwa",
     "predev": "node scripts/copy-wasm.mjs",
     "prebuild": "node scripts/copy-wasm.mjs",
-    "build:online": "node scripts/check-online-env.mjs && npm run build",
+    "build:online": "npm run build",
     "test:cloud": "playwright test --config=playwright.cloud.config.ts",
-    "test:pwa": "playwright test --config=playwright.pwa.config.ts"
+    "test:pwa": "playwright test --config=playwright.pwa.config.ts",
+    "start": "node server/index.mjs",
+    "test:neon": "node --test tests/server/*.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^7.0.3",
@@ -28,8 +30,10 @@
     "@capacitor/ios": "^7.6.9",
     "@capacitor/share": "^7.0.0",
     "@supabase/supabase-js": "^2.109.0",
+    "express": "^5.2.1",
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.468.0",
+    "pg": "^8.23.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sql.js": "^1.13.0",
