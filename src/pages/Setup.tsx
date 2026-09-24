@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Sprout, ShieldCheck } from "lucide-react";
 import { Card, Field, Form, NumberField, str, num } from "../components/ui";
 import type { FarmRepository } from "../repositories/farm";
@@ -5,14 +6,18 @@ import { sizes } from "../utils/calculations";
 export function Setup({
   farm,
   done,
+  cloud = false,
+  actions,
 }: {
+  cloud?: boolean;
+  actions?: ReactNode;
   farm: FarmRepository;
   done: () => Promise<void>;
 }) {
   return (
     <main className="setup">
       <div className="brand">
-        <Sprout /> FarmTrack
+        <Sprout /> EggPro
       </div>
       <h1>
         A better day
@@ -22,8 +27,11 @@ export function Setup({
       <p className="lead">
         Your cages, collections, and cash flow.
         <br />
-        All in one place. Always offline.
+        {cloud
+          ? "Saved to your account. Available on your phones."
+          : "All in one place. Always offline."}
       </p>
+      {actions}
       <Card>
         <h2>Let’s set up your farm</h2>
         <p>You can adjust your cages and prices later.</p>
@@ -105,7 +113,10 @@ export function Setup({
         </Form>
       </Card>
       <p className="privacy">
-        <ShieldCheck size={17} /> Stored on this device. No account needed.
+        <ShieldCheck size={17} />{" "}
+        {cloud
+          ? "Saved to your account. Sign in on another phone to open your farm."
+          : "Stored on this device. No account needed."}
       </p>
     </main>
   );

@@ -177,7 +177,7 @@ export function Production({
     try {
       await repo.bulk(date, mode);
       await refresh();
-      setMessage("Day updated and saved on this device.");
+      setMessage("Day updated and saved.");
     } catch (e) {
       setMessage(errorMessage(e));
     } finally {
@@ -264,7 +264,7 @@ export function Production({
           onClick={async () => {
             await refresh();
             setMessage(
-              "All saved entries are on this device. Unrecorded cages remain blank.",
+              "Entries are saved after each change. Unrecorded cages remain blank.",
             );
           }}
         >

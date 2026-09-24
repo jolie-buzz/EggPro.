@@ -17,3 +17,5 @@ coverage/
 test-results/
 
 .node_modules-offloaded/
+public/sql-wasm.wasm
+!.env.example

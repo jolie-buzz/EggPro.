@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Home as HomeIcon,
   Egg,
@@ -105,19 +105,29 @@ const more = [
     icon: FlaskConical,
   },
 ];
-export function App() {
+export function App({
+  database,
+  cloud = false,
+  accountControls,
+  setupActions,
+}: {
+  database?: Database;
+  cloud?: boolean;
+  accountControls?: ReactNode;
+  setupActions?: ReactNode;
+} = {}) {
   const [db, setDb] = useState<Database>(),
     [state, setState] = useState<State>(),
     [page, setPage] = useState("home"),
     [error, setError] = useState("");
   useEffect(() => {
-    openDatabase()
+    (database ? Promise.resolve(database) : openDatabase())
       .then(async (d) => {
         setDb(d);
         setState(await new FarmRepository(d).snapshot());
       })
       .catch((e) => setError(errorMessage(e)));
-  }, []);
+  }, [database]);
   async function refresh() {
     if (db) setState(await new FarmRepository(db).snapshot());
   }
@@ -128,7 +138,7 @@ export function App() {
   if (error)
     return (
       <main className="setup">
-        <h1>FarmTrack couldn’t open your data</h1>
+        <h1>EggPro couldn’t open your data</h1>
         <p className="error" role="alert">
           {error}
         </p>
@@ -143,8 +153,8 @@ export function App() {
     return (
       <main className="loading">
         <Sprout size={40} />
-        <h1>FarmTrack</h1>
-        <p>Opening your local farm…</p>
+        <h1>EggPro</h1>
+        <p>Opening your farm…</p>
       </main>
     );
   const farm = new FarmRepository(db),
@@ -152,7 +162,18 @@ export function App() {
     inventory = new InventoryRepository(db),
     sales = new SalesRepository(db),
     expenses = new ExpenseRepository(db);
-  if (!state.farms.length) return <Setup farm={farm} done={refresh} />;
+  if (!state.farms.length)
+    return (
+      <>
+        {cloud && <div className="setup-account">{accountControls}</div>}
+        <Setup
+          farm={farm}
+          done={refresh}
+          cloud={cloud}
+          actions={setupActions}
+        />
+      </>
+    );
   const common = { state, refresh };
   const back = () => go("more");
   let content;
@@ -201,7 +222,7 @@ export function App() {
       content = <Settings {...common} farm={farm} back={back} />;
       break;
     case "backup":
-      content = <Backup db={db} refresh={refresh} back={back} />;
+      content = <Backup cloud={cloud} db={db} refresh={refresh} back={back} />;
       break;
     case "demo":
       content = <Demo db={db} refresh={refresh} back={back} />;
@@ -230,7 +251,10 @@ export function App() {
             ))}
           </Card>
           <p className="privacy">
-            <ShieldCheck size={16} /> FarmTrack 1.0 · Offline, on your device
+            <ShieldCheck size={16} />{" "}
+            {cloud
+              ? "EggPro · Saved to your account"
+              : "EggPro · Offline, on your device"}
           </p>
         </>
       );
@@ -246,7 +270,7 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <Sprout size={30} /> FarmTrack
+          <Sprout size={30} /> EggPro
         </div>
         <p className="sidebar-farm">{state.farms[0].name}</p>
         <nav aria-label="Desktop navigation">
@@ -264,8 +288,12 @@ export function App() {
         <div className="sidebar-footer">
           <ShieldCheck size={18} />
           <div>
-            <strong>Yours. Always.</strong>
-            <small>Stored locally · works offline</small>
+            <strong>Your farm records</strong>
+            <small>
+              {cloud
+                ? "Saved online · available on your phones"
+                : "Stored locally · works offline"}
+            </small>
           </div>
         </div>
       </aside>
@@ -273,12 +301,18 @@ export function App() {
         <header className="topbar">
           <div className="brand">
             <Sprout size={24} />
-            <span>FarmTrack</span>
+            <span>EggPro</span>
           </div>
           <span className="farm-name">{state.farms[0].name}</span>
-          <span className="offline-dot">On device</span>
+          <span className="offline-dot">{cloud ? "Online" : "On device"}</span>
         </header>
         <main className="content" key={page}>
+          {cloud && (
+            <details className="account-panel">
+              <summary>Account & sync</summary>
+              {accountControls}
+            </details>
+          )}
           {content}
         </main>
       </div>

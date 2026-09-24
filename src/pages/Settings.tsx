@@ -33,7 +33,7 @@ export function Settings({
     <>
       <Heading
         title="Farm settings"
-        subtitle="Make FarmTrack your own."
+        subtitle="Make EggPro your own."
         back={back}
       />
       <Card>
@@ -94,7 +94,11 @@ export function Backup({
   db,
   refresh,
   back,
+  cloud = false,
+  importOnly = false,
 }: {
+  cloud?: boolean;
+  importOnly?: boolean;
   db: Database;
   refresh: () => Promise<void>;
   back: () => void;
@@ -126,35 +130,40 @@ export function Backup({
         subtitle="Your farm data belongs to you."
         back={back}
       />
-      <Card>
-        <ShieldCheck size={30} className="good" />
-        <h2>Keep a copy somewhere safe</h2>
-        <p>
-          Export all farm records to one JSON file. On iPhone, use the share
-          sheet to save to Files, AirDrop, or iCloud Drive. No cloud account is
-          required by FarmTrack.
-        </p>
-        <button
-          disabled={busy}
-          className="primary full"
-          onClick={() =>
-            run(async () => {
-              await shareBackup(await backup.export());
-            }, "Backup prepared. Complete Save or Share in the system dialog to keep your copy.")
-          }
-        >
-          <Download size={18} /> Export backup
-        </button>
-        <p className="hint">
-          Backups contain customer details and financial records. Keep them in a
-          trusted location. The file is not encrypted.
-        </p>
-      </Card>
+      {!importOnly && (
+        <Card>
+          <ShieldCheck size={30} className="good" />
+          <h2>Keep a copy somewhere safe</h2>
+          <p>
+            Export all farm records to one JSON file. On iPhone, use the share
+            sheet to save to Files, AirDrop, or iCloud Drive. Keep a separate
+            backup even when your records are saved online.
+          </p>
+          <button
+            disabled={busy}
+            className="primary full"
+            onClick={() =>
+              run(async () => {
+                await shareBackup(await backup.export());
+              }, "Backup prepared. Complete Save or Share in the system dialog to keep your copy.")
+            }
+          >
+            <Download size={18} /> Export backup
+          </button>
+          <p className="hint">
+            Backups contain customer details and financial records. Keep them in
+            a trusted location. The file is not encrypted.
+          </p>
+        </Card>
+      )}
       <Card>
         <h2>Restore a backup</h2>
         <p>
-          Restoring replaces all data on this device. Export your current data
-          first.
+          Restoring replaces all farm records{" "}
+          {cloud
+            ? "in this account, including what other phones see"
+            : "on this device"}
+          . Export your current data first.
         </p>
         <label className="file-button">
           <Upload size={18} /> Choose backup file
@@ -191,7 +200,7 @@ export function Backup({
               onClick={() => {
                 if (
                   confirm(
-                    `Replace all current farm data with the backup of ${pending.name}? This cannot be undone without your own backup.`,
+                    `Replace all current farm data ${cloud ? "in this online account" : "on this device"} with the backup of ${pending.name}? This cannot be undone without your own backup.`,
                   )
                 )
                   void run(async () => {

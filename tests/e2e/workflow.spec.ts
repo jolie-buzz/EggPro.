@@ -216,7 +216,7 @@ test("off-happy-path inventory error and invalid backup preserve farm", async ({
       buffer: Buffer.from("{}"),
     });
   await expect(page.getByRole("status")).toContainText(
-    "not a supported FarmTrack backup",
+    "not a supported EggPro/FarmTrack backup",
   );
   await tab(page, "Home");
   await expect(page.locator(".farm-name")).toBeVisible();

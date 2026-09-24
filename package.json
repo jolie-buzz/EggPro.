@@ -1,7 +1,7 @@
 {
-  "name": "farmtrack",
+  "name": "eggpro",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -13,9 +13,12 @@
     "android": "npm run build && cap sync android && cap open android",
     "test:e2e": "playwright test",
     "format": "prettier --write src tests *.ts *.json *.html docs README.md",
-    "check": "npm test && npm run build && npm run test:e2e",
+    "check": "npm test && npm run build && npm run test:e2e && npm run test:cloud && npm run test:pwa",
     "predev": "node scripts/copy-wasm.mjs",
-    "prebuild": "node scripts/copy-wasm.mjs"
+    "prebuild": "node scripts/copy-wasm.mjs",
+    "build:online": "node scripts/check-online-env.mjs && npm run build",
+    "test:cloud": "playwright test --config=playwright.cloud.config.ts",
+    "test:pwa": "playwright test --config=playwright.pwa.config.ts"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^7.0.3",
@@ -34,6 +37,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.9",
+    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.63.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",

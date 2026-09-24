@@ -26,7 +26,17 @@ export type Backup = {
   checksum: string;
 };
 const schemaVersion = migrations.at(-1)!.version;
-export async function checksum(data: unknown) {
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, item]) => [key, canonical(item)]),
+    );
+  return value;
+}
+async function digest(data: unknown) {
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(JSON.stringify(data)),
@@ -34,6 +44,9 @@ export async function checksum(data: unknown) {
   return Array.from(new Uint8Array(digest), (b) =>
     b.toString(16).padStart(2, "0"),
   ).join("");
+}
+export async function checksum(data: unknown) {
+  return digest(canonical(data));
 }
 export async function validateBackup(input: string): Promise<Backup> {
   assert(
@@ -46,7 +59,7 @@ export async function validateBackup(input: string): Promise<Backup> {
   } catch {
     throw new Error("The selected file is not valid JSON.");
   }
-  assert(value && typeof value === "object", "Invalid FarmTrack backup");
+  assert(value && typeof value === "object", "Invalid EggPro/FarmTrack backup");
   const b = value as Backup;
   assert(
     b.format === "FarmTrack" &&
@@ -54,7 +67,7 @@ export async function validateBackup(input: string): Promise<Backup> {
       Number.isInteger(b.schemaVersion) &&
       b.schemaVersion >= 1 &&
       b.schemaVersion <= schemaVersion,
-    "This is not a supported FarmTrack backup version.",
+    "This is not a supported EggPro/FarmTrack backup version.",
   );
   assert(b.data && typeof b.data === "object", "Missing backup data");
   assert(
@@ -67,7 +80,8 @@ export async function validateBackup(input: string): Promise<Backup> {
     "Invalid export date",
   );
   assert(
-    b.checksum === (await checksum(b.data)),
+    b.checksum === (await checksum(b.data)) ||
+      b.checksum === (await digest(b.data)),
     "Backup checksum does not match. The file may be damaged.",
   );
   for (const t of tables) {
@@ -259,7 +273,7 @@ export class BackupService {
   }
 }
 export async function shareBackup(backup: Backup) {
-  const name = `farmtrack-backup-${today()}.json`,
+  const name = `eggpro-backup-${today()}.json`,
     data = JSON.stringify(backup, null, 2);
   if (Capacitor.isNativePlatform()) {
     const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([
@@ -273,7 +287,7 @@ export async function shareBackup(backup: Backup) {
       encoding: Encoding.UTF8,
     });
     await Share.share({
-      title: "FarmTrack backup",
+      title: "EggPro backup",
       url: file.uri,
       dialogTitle: "Save or share your farm backup",
     });
