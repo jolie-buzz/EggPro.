@@ -17,8 +17,10 @@ const token = () => ({
   user,
 });
 let record: Record<string, unknown> | null;
+let available = true;
 async function mock(context: BrowserContext) {
   await context.route("https://eggpro-test.supabase.co/**", async (route) => {
+    if (!available) return route.abort();
     const req = route.request(),
       url = new URL(req.url());
     const send = (body: unknown, status = 200) =>
@@ -65,6 +67,7 @@ test("login persists; farm and custom sizes open on a second phone; logout clear
   browser,
 }, info) => {
   record = null;
+  available = true;
   await mock(context);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -86,6 +89,12 @@ test("login persists; farm and custom sizes open on a second phone; logout clear
   await page.getByLabel("Default price per tray").fill("300");
   await page.getByRole("button", { name: "Add size", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByText("Account & sync", { exact: true }).click();
+  await page.getByRole("button", { name: "Sync now", exact: true }).click();
+  await expect.poll(() => record?.revision).toBeGreaterThan(0);
+  await expect(
+    page.getByText("Saved on phone & cloud", { exact: true }),
+  ).toBeVisible();
   const other = await browser.newContext({
     viewport: { width: 390, height: 844 },
     serviceWorkers: "block",
@@ -127,4 +136,49 @@ test("login persists; farm and custom sizes open on a second phone; logout clear
     ),
   ).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test("offline records and an expired saved login survive reload, then sync on reconnect", async ({
+  page,
+  context,
+}) => {
+  record = null;
+  available = true;
+  await mock(context);
+  await login(page);
+  await page.getByLabel("Farm name", { exact: true }).fill("QA Offline EggPro");
+  await page.getByLabel("Number of cages").fill("2");
+  await page.getByRole("button", { name: "Create my farm" }).click();
+  await page.getByText("Account & sync", { exact: true }).click();
+  await page.getByRole("button", { name: "Sync now", exact: true }).click();
+  await expect.poll(() => record?.revision).toBe(1);
+  available = false;
+  await tab(page, "Inventory");
+  await page.getByRole("button", { name: "Sort collection" }).click();
+  await page.getByRole("button", { name: "Add custom size" }).click();
+  await page.getByLabel("Size name").fill("Offline Jumbo");
+  await page.getByLabel("Default price per tray").fill("300");
+  await page.getByRole("button", { name: "Add size", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.evaluate(() => {
+    const session = JSON.parse(localStorage.getItem("eggpro-auth")!);
+    session.expires_at = 1;
+    localStorage.setItem("eggpro-auth", JSON.stringify(session));
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Your farm, at a glance" }),
+  ).toBeVisible();
+  await tab(page, "Inventory");
+  await expect(
+    page.locator(".egg-stock").filter({ hasText: "Offline Jumbo" }),
+  ).toBeVisible();
+  await expect.poll(() => record?.revision).toBe(1);
+  available = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(() => record?.revision, { timeout: 30000 }).toBe(2);
+  await page.getByText("Account & sync", { exact: true }).click();
+  await expect(
+    page.getByText("Saved on phone & cloud", { exact: true }),
+  ).toBeVisible();
 });

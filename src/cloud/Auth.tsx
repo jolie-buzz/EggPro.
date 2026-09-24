@@ -3,7 +3,14 @@ import type { Session } from "@supabase/supabase-js";
 import { Sprout, ShieldCheck, LogOut, RefreshCw, Download } from "lucide-react";
 import { supabase, localMode } from "./client";
 import { accountStore } from "./store";
-import { openCloudDatabase, type CloudDatabase } from "./database";
+import {
+  openOfflineDatabase,
+  type OfflineDatabase,
+  type SyncStatus,
+} from "./offline";
+import { accountCache } from "./local-cache";
+import { Capacitor } from "@capacitor/core";
+import { shareBackup } from "../services/backup";
 import { App } from "../App";
 import { Backup } from "../pages/Settings";
 import { Card, Field, Form, str, errorMessage } from "../components/ui";
@@ -15,9 +22,19 @@ function Brand() {
     </div>
   );
 }
+// This cached identity only unlocks the same device's local copy. Supabase still
+// validates its real token on every cloud request; an expired token cannot sync.
+function cachedSession(): Session | null {
+  try {
+    const value = JSON.parse(localStorage.getItem("eggpro-auth") ?? "null");
+    return value?.user?.id && value?.access_token ? (value as Session) : null;
+  } catch {
+    return null;
+  }
+}
 export function Root() {
-  const [session, setSession] = useState<Session | null>(null),
-    [loading, setLoading] = useState(true),
+  const [session, setSession] = useState<Session | null>(cachedSession),
+    [loading, setLoading] = useState(!cachedSession()),
     [recovery, setRecovery] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -30,7 +47,7 @@ export function Root() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, next) => {
       if (!mounted) return;
-      setSession(next);
+      setSession(next ?? (event === "SIGNED_OUT" ? null : cachedSession()));
       setLoading(false);
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
@@ -39,7 +56,7 @@ export function Root() {
       .then(({ data, error }) => {
         if (!mounted) return;
         if (error) setError(error.message);
-        setSession(data.session);
+        setSession(data.session ?? (error ? cachedSession() : null));
         setLoading(false);
       })
       .catch(() => {
@@ -53,7 +70,16 @@ export function Root() {
       subscription.unsubscribe();
     };
   }, []);
-  if (localMode) return <App />;
+  if (localMode || (!supabase && Capacitor.isNativePlatform()))
+    return (
+      <App
+        deviceNotice={
+          !supabase && Capacitor.isNativePlatform()
+            ? "Offline edition · Cloud backup is not connected yet. Records are saved on this phone."
+            : undefined
+        }
+      />
+    );
   if (!supabase)
     return (
       <main className="setup">
@@ -140,7 +166,9 @@ function AuthScreen({ initialError }: { initialError: string }) {
             if (mode === "reset") {
               const { error } = await supabase!.auth.resetPasswordForEmail(
                 email,
-                { redirectTo: location.origin + "/" },
+                Capacitor.isNativePlatform()
+                  ? undefined
+                  : { redirectTo: location.origin + "/" },
               );
               if (error) throw error;
               setMessage(
@@ -153,7 +181,11 @@ function AuthScreen({ initialError }: { initialError: string }) {
               const { data, error } = await supabase!.auth.signUp({
                 email,
                 password,
-                options: { emailRedirectTo: location.origin + "/" },
+                options: {
+                  emailRedirectTo: Capacitor.isNativePlatform()
+                    ? undefined
+                    : location.origin + "/",
+                },
               });
               if (error) throw error;
               if (!data.session)
@@ -235,7 +267,7 @@ function AuthScreen({ initialError }: { initialError: string }) {
   );
 }
 function OnlineFarm({ session }: { session: Session }) {
-  const [connection, setConnection] = useState<CloudDatabase>(),
+  const [connection, setConnection] = useState<OfflineDatabase>(),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [reloadKey, setReloadKey] = useState(0),
@@ -244,16 +276,19 @@ function OnlineFarm({ session }: { session: Session }) {
     [online, setOnline] = useState(navigator.onLine),
     [importing, setImporting] = useState(false);
   useEffect(() => {
+    const controller = new AbortController();
     let active = true,
-      opened: CloudDatabase | undefined;
+      opened: OfflineDatabase | undefined;
     import("sql.js")
       .then(async ({ default: init }) => {
         const SQL = await init({
           locateFile: () => new URL("sql-wasm.wasm", document.baseURI).href,
         });
-        opened = await openCloudDatabase(
+        opened = await openOfflineDatabase(
           SQL,
           accountStore(supabase!, session.user.id),
+          accountCache(session.user.id, import.meta.env.VITE_SUPABASE_URL),
+          controller.signal,
         );
         if (active) setConnection(opened);
         else opened.dispose();
@@ -263,34 +298,62 @@ function OnlineFarm({ session }: { session: Session }) {
       });
     return () => {
       active = false;
+      controller.abort();
       opened?.dispose();
     };
   }, [session.user.id]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>();
   useEffect(() => {
-    const connectivity = () => setOnline(navigator.onLine);
-    const check = () => {
-      if (
-        connection &&
-        document.visibilityState === "visible" &&
-        navigator.onLine
-      )
-        void connection
-          .checkForUpdates()
-          .then(setUpdates)
-          .catch(() => {});
+    if (!connection) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const sync = () => {
+      if (navigator.onLine && document.visibilityState === "visible")
+        void connection.sync();
     };
+    const update = () => {
+      const status = connection.status();
+      setSyncStatus(status);
+      setUpdates(status.updates);
+      if (
+        status.pending &&
+        !status.syncing &&
+        !status.conflict &&
+        navigator.onLine
+      ) {
+        clearTimeout(timer);
+        timer = setTimeout(sync, 5000);
+      }
+    };
+    const connectivity = () => {
+      setOnline(navigator.onLine);
+      sync();
+    };
+    const unsubscribe = connection.subscribe(update);
+    update();
+    sync();
+    const interval = setInterval(sync, 30000);
     window.addEventListener("online", connectivity);
     window.addEventListener("offline", connectivity);
-    window.addEventListener("focus", check);
-    const timer = setInterval(check, 30000);
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
     return () => {
-      clearInterval(timer);
+      unsubscribe();
+      clearTimeout(timer);
+      clearInterval(interval);
       window.removeEventListener("online", connectivity);
       window.removeEventListener("offline", connectivity);
-      window.removeEventListener("focus", check);
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
     };
   }, [connection]);
   async function signOut() {
+    if (
+      connection?.status().pending &&
+      !confirm(
+        "This phone has records waiting to sync. They will stay on this phone under this account, but are not backed up online yet. Log out anyway?",
+      )
+    )
+      return;
     setBusy(true);
     try {
       const { error } = await supabase!.auth.signOut({ scope: "local" });
@@ -307,7 +370,9 @@ function OnlineFarm({ session }: { session: Session }) {
       await connection.reload();
       setReloadKey((k) => k + 1);
       setUpdates(false);
-      setNotice("Latest farm records loaded.");
+      setNotice(
+        "Latest cloud records loaded. Saved phone changes were preserved.",
+      );
     } catch (e) {
       setNotice(errorMessage(e));
     } finally {
@@ -318,11 +383,27 @@ function OnlineFarm({ session }: { session: Session }) {
     <div className="cloud-toolbar">
       <div>
         <strong>
-          {online ? "Online farm" : "Offline · reconnect to save"}
+          {syncStatus?.syncing
+            ? "Syncing…"
+            : syncStatus?.conflict
+              ? "Sync needs review"
+              : syncStatus?.pending
+                ? "Saved on phone · waiting to sync"
+                : online && syncStatus?.lastSynced
+                  ? "Saved on phone & cloud"
+                  : online
+                    ? "Saved on phone"
+                    : "Offline · records saved on phone"}
         </strong>
         <small>{session.user.email}</small>
       </div>
       <div className="actions">
+        <button
+          disabled={busy || !connection || !online || syncStatus?.syncing}
+          onClick={() => void connection?.sync()}
+        >
+          <RefreshCw size={16} /> Sync now
+        </button>
         <button
           disabled={busy || !connection}
           onClick={() => {
@@ -334,7 +415,7 @@ function OnlineFarm({ session }: { session: Session }) {
               void reload();
           }}
         >
-          <RefreshCw size={16} /> Reload farm
+          <RefreshCw size={16} /> Reload cloud copy
         </button>
         <button disabled={busy} onClick={() => void signOut()}>
           <LogOut size={16} /> Log out
@@ -346,7 +427,7 @@ function OnlineFarm({ session }: { session: Session }) {
     return (
       <main className="setup">
         <Brand />
-        <h1>Couldn’t open your online farm</h1>
+        <h1>Couldn’t open your farm</h1>
         <p role="alert">{error}</p>
         <button onClick={() => location.reload()}>Try again</button>
         {toolbar}
@@ -356,7 +437,7 @@ function OnlineFarm({ session }: { session: Session }) {
     return (
       <main className="loading">
         <Brand />
-        <p>Opening your online farm…</p>
+        <p>Opening your saved farm…</p>
       </main>
     );
   const controls = (
@@ -364,9 +445,75 @@ function OnlineFarm({ session }: { session: Session }) {
       {toolbar}
       {updates && (
         <p className="notice" role="status">
-          New changes are available from another phone. Use Reload farm before
-          entering more records.
+          New changes are available from another phone. Use Reload cloud copy
+          before entering more records.
         </p>
+      )}
+      {syncStatus && (
+        <p className="hint" role="status">
+          {syncStatus.message}
+          {syncStatus.lastSynced
+            ? ` · Last synced ${new Date(syncStatus.lastSynced).toLocaleString()}`
+            : " · No cloud backup yet"}
+        </p>
+      )}
+      {connection && syncStatus?.conflict && (
+        <Card>
+          <h2>Two farm versions need review</h2>
+          <p>
+            This phone and another phone have changed the farm. Nothing has been
+            overwritten. Export both copies before deciding which whole farm
+            version to continue with.
+          </p>
+          <div className="actions">
+            <button onClick={() => void shareBackup(connection.copies().phone)}>
+              Export phone version
+            </button>
+            <button
+              onClick={() => {
+                const cloud = connection.copies().cloud;
+                if (cloud) void shareBackup(cloud);
+              }}
+            >
+              Export cloud version
+            </button>
+            {(["phone", "cloud"] as const).map((choice) => (
+              <button
+                key={choice}
+                disabled={busy || !online}
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Use the entire ${choice} version? These versions are not merged. Both copies will be kept in Recovery backups on this phone.`,
+                    )
+                  )
+                    return;
+                  setBusy(true);
+                  try {
+                    await connection.resolve(choice);
+                    setReloadKey((k) => k + 1);
+                  } catch (e) {
+                    setNotice(errorMessage(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Use {choice} version
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+      {connection && connection.copies().recovery.length > 0 && (
+        <details>
+          <summary>Recovery backups</summary>
+          {connection.copies().recovery.map((copy, i) => (
+            <button key={i} onClick={() => void shareBackup(copy.document)}>
+              {copy.label} · {new Date(copy.date).toLocaleString()}
+            </button>
+          ))}
+        </details>
       )}
       {notice && (
         <p role="status" className="notice">
@@ -398,6 +545,15 @@ function OnlineFarm({ session }: { session: Session }) {
           database={connection.db}
           cloud
           accountControls={controls}
+          deviceNotice={
+            syncStatus?.conflict
+              ? "Sync needs review. Open Account & sync; both farm versions are safe."
+              : syncStatus?.pending
+                ? "Saved on phone · waiting to sync"
+                : !online
+                  ? "Offline · you can keep recording"
+                  : undefined
+          }
           setupActions={
             <button onClick={() => setImporting(true)}>
               <Download size={18} /> Import backup from the offline app

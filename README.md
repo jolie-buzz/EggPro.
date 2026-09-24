@@ -1,6 +1,6 @@
 # EggPro
 
-Installable poultry farm management web app for Android and iPhone. React + TypeScript on a **free Render Static Site**, with **Supabase Auth and Postgres** for account access and cloud records.
+Offline-first poultry management Android APK and installable web app for Android and iPhone. React + TypeScript on a **free Render Static Site**, with **Supabase Auth and Postgres** for account access and cloud records.
 
 One account owns one farm. Sign in to the same account on another phone to open its records. Sessions persist and refresh automatically until logout, revoked credentials, or browser storage clearing. Installing the site does not itself copy data: the account is the source of the farm records.
 
@@ -23,24 +23,45 @@ No subscription or paid add-on is required by this configuration. Free-tier quot
 
 Open the deployed HTTPS URL. On Android choose **Install EggPro** or the browser's **Install app** menu. On iPhone open in Safari, choose **Share → Add to Home Screen**. Use the same account on every phone that should open that farm.
 
-Internet is required to open and save cloud records. The installed shell can open offline, but it does not accept unsynced farm edits or pretend that a local-only save is online. Records already displayed remain visible until the app closes; reconnect to reload or save. No API responses or farm records are cached by the service worker.
+The Android APK includes its app files and opens without internet. After the first online sign-in and farm download, account records and edits are stored durably on the phone, including when an existing login token expires offline. Web installations cache the app shell and keep account data in IndexedDB. Native account data is saved in SQLite. Saved login information stays on the device until logout, removal of app storage, or invalidation by the authentication service; server access always requires valid authentication.
+
+Changes show **Saved on phone · waiting to sync** until acknowledged by the cloud. Sync retries while the app is open, when it returns to the foreground, and when connectivity returns. This is not an Android background service: open EggPro while connected to finish backup. A new phone needs internet for its first login and download. Unsynced edits cannot be recovered from the internet if the phone is lost or the app is uninstalled.
+
+### Build an Android APK
+
+Keep application ID `com.farmtrack.app` and the original signing certificate to update the old APK without deleting its data. Version 3 uses the visible name EggPro. Export a JSON backup before installing any update; do not uninstall the old app.
+
+```sh
+npm ci
+# Configure the real public Supabase settings in .env.local first.
+npm run build:online
+npx cap sync android
+cd android
+./gradlew assembleDebug
+```
+
+The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. Use the Android Studio JDK and configured Android SDK. This is a directly installable debug build; a Play Store release requires a separately managed release-signing setup.
+
+Without Supabase settings, a native `npm run build` produces a clearly labelled **offline edition** using the existing local farm database. That APK does not offer login/cloud sync until updated with a configured build. No fake test project is included in the distributed offline edition. Render hosts the companion web app; native APKs bundle their own UI.
 
 ## Move records from the old APK
 
 1. Keep the old offline app installed. In it choose **More → Backup & restore → Export backup**, and save the JSON file.
 2. Sign in to EggPro online. On the new farm screen choose **Import backup from the offline app**.
-3. Review the farm name and confirm the import. The records are then saved to this account.
+3. Review the farm name and confirm the import. The records are saved on this phone. Open Account & sync and wait until they are saved on phone and cloud.
 4. Open the same account on a second phone and verify production, stock, customer balances and sales before removing the old app.
 
-The compatibility marker inside JSON files remains `FarmTrack`, so earlier backups continue to import. Visible branding is EggPro. Importing a backup into an existing online farm replaces that account's records on all phones; export a copy first.
+The compatibility marker inside JSON files remains `FarmTrack`, so earlier backups continue to import. Visible branding is EggPro. Importing replaces this phone's farm and queues it for cloud sync; export a copy first.
 
 ## Data and concurrency
 
-`eggpro_farms` holds each account's structured JSON farm document in Supabase Postgres. All 16 ledgers are retained. Existing SQLite calculations and constraints validate changes in memory before an atomic cloud save. There is no persistent browser cache of farm records in online mode.
+`eggpro_farms` holds each account's structured JSON farm document in Supabase Postgres. All 16 ledgers are retained. SQLite calculations and constraints validate edits, then each completed transaction is saved locally before the UI reports success. A per-account, per-project cache prevents one account from opening another account's local records. Logout hides that cache but retains unsynced changes for the same account's next login.
 
-Only the owner can read a document. Direct client writes are revoked; the SQL function checks `auth.uid()`, locks the account and compares its revision. If two devices edit an old version, the stale save is rejected without overwriting the newer farm. **Account & sync → Reload farm** fetches current records; it explicitly clears unsaved form entries. Failed or ambiguous writes require reload before another attempt. Request IDs recognize a lost acknowledgement and prevent accidental double application.
+Only the owner can read a cloud document. Direct client writes are revoked; the SQL function checks `auth.uid()`, locks the account and compares its revision. Persistent request IDs recognize a lost upload acknowledgement. Network requests do not block local farm editing. Local cache revisions reject stale app windows.
 
-The app checks for remote updates while open and when refocused. This is a small-farm document architecture, not a high-volume multi-tenant analytics warehouse: the full structured document is sent per save, with a 10 MB maximum. Monitor Supabase bandwidth/storage as records grow. Farm documents use a canonical checksum so Postgres JSON key ordering does not break backup validation.
+If two phones edit the same old version, EggPro keeps both versions and requires review in **Account & sync**. Export both, then choose the entire phone or cloud version. Both are retained in local **Recovery backups** before replacement; this is not a record-by-record merge. Recovery copies must be exported before uninstalling. New cloud records are offered with **Reload cloud copy**, rather than replacing an open form. Pending phone records cannot be silently discarded by reload.
+
+This is a small-farm document architecture: the full structured document is uploaded per sync, with a 10 MB server maximum. Monitor bandwidth/storage as records grow. Canonical checksums preserve compatibility with PostgreSQL JSONB property ordering.
 
 ## Local development and tests
 
@@ -56,7 +77,7 @@ npm run check
 
 `npm run check` runs real SQLite repository/cloud tests, Postgres RLS/RPC tests using PGlite, a production build, legacy farm browser workflows and a mocked-cloud two-phone/auth workflow. Browser mocks do not replace required live Supabase and Render verification.
 
-For the legacy offline mode only: `VITE_LOCAL_ONLY=true npm run dev`. Never set this on Render. The native Android/iOS directories are retained for the old offline app; this delivery targets the installable web app.
+For the legacy offline mode only: `VITE_LOCAL_ONLY=true npm run dev`. Never set this on Render. Android is also supported as an offline-first APK. iOS native builds have not been verified.
 
 ## Source recovery
 

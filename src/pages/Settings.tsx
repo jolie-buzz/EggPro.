@@ -161,7 +161,7 @@ export function Backup({
         <p>
           Restoring replaces all farm records{" "}
           {cloud
-            ? "in this account, including what other phones see"
+            ? "on this phone and, after syncing, in this account"
             : "on this device"}
           . Export your current data first.
         </p>
@@ -200,7 +200,7 @@ export function Backup({
               onClick={() => {
                 if (
                   confirm(
-                    `Replace all current farm data ${cloud ? "in this online account" : "on this device"} with the backup of ${pending.name}? This cannot be undone without your own backup.`,
+                    `Replace all current farm data ${cloud ? "on this phone and its next cloud sync" : "on this device"} with the backup of ${pending.name}? This cannot be undone without your own backup.`,
                   )
                 )
                   void run(async () => {

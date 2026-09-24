@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Download } from "lucide-react";
 interface InstallEvent extends Event {
   prompt(): Promise<void>;
@@ -23,7 +24,7 @@ export function InstallApp() {
       window.removeEventListener("appinstalled", done);
     };
   }, []);
-  if (installed) return null;
+  if (installed || Capacitor.isNativePlatform()) return null;
   return (
     <div className="install-app">
       <button
@@ -42,8 +43,9 @@ export function InstallApp() {
         <p className="hint">
           iPhone: open this site in Safari, tap Share, then Add to Home Screen.
           Android: open the browser menu and choose Install app or Add to Home
-          screen. Sign in with the same account on each phone. Internet is
-          required to load and save farm records.
+          screen. Sign in with the same account on each phone. After your first
+          online login, you can keep recording offline. Open EggPro with a
+          connection to sync saved changes.
         </p>
       )}
     </div>

@@ -110,11 +110,13 @@ export function App({
   cloud = false,
   accountControls,
   setupActions,
+  deviceNotice,
 }: {
   database?: Database;
   cloud?: boolean;
   accountControls?: ReactNode;
   setupActions?: ReactNode;
+  deviceNotice?: string;
 } = {}) {
   const [db, setDb] = useState<Database>(),
     [state, setState] = useState<State>(),
@@ -166,6 +168,7 @@ export function App({
     return (
       <>
         {cloud && <div className="setup-account">{accountControls}</div>}
+        {deviceNotice && <p className="notice setup-account">{deviceNotice}</p>}
         <Setup
           farm={farm}
           done={refresh}
@@ -291,7 +294,7 @@ export function App({
             <strong>Your farm records</strong>
             <small>
               {cloud
-                ? "Saved online · available on your phones"
+                ? "Saved on phone · syncs to your account"
                 : "Stored locally · works offline"}
             </small>
           </div>
@@ -304,7 +307,9 @@ export function App({
             <span>EggPro</span>
           </div>
           <span className="farm-name">{state.farms[0].name}</span>
-          <span className="offline-dot">{cloud ? "Online" : "On device"}</span>
+          <span className="offline-dot">
+            {cloud ? "Phone + cloud" : "On device"}
+          </span>
         </header>
         <main className="content" key={page}>
           {cloud && (
@@ -312,6 +317,11 @@ export function App({
               <summary>Account & sync</summary>
               {accountControls}
             </details>
+          )}
+          {deviceNotice && (
+            <p className="notice" role="status">
+              {deviceNotice}
+            </p>
           )}
           {content}
         </main>

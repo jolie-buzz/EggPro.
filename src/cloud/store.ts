@@ -41,10 +41,10 @@ export function accountStore(
       if (error) {
         if (error.code === "40001")
           throw new Error(
-            "Another phone has updated this farm. Reload the farm, check its latest records, then enter this change again. Nothing was overwritten.",
+            "Another phone updated this farm. Sync again to review both versions. Your phone records are saved.",
           );
         throw new Error(
-          "Cloud save could not be confirmed. Reload the farm before retrying, so the same entry is not saved twice.",
+          "Cloud save could not be confirmed. Your phone records are saved; sync will retry safely.",
         );
       }
       return { ...data, document } as CloudRecord;

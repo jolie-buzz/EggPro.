@@ -6,6 +6,13 @@ export const localMode = import.meta.env.VITE_LOCAL_ONLY === "true";
 // Only a publishable/anon key belongs in the web bundle. RLS protects every account.
 export const supabase = cloudConfigured
   ? createClient(url, key, {
+      global: {
+        fetch: (input, init) =>
+          fetch(input, {
+            ...init,
+            signal: init?.signal ?? AbortSignal.timeout(12000),
+          }),
+      },
       auth: {
         persistSession: true,
         autoRefreshToken: true,

@@ -28,7 +28,7 @@ export function Setup({
         Your cages, collections, and cash flow.
         <br />
         {cloud
-          ? "Saved to your account. Available on your phones."
+          ? "Saved on your phone. Synced when you’re online."
           : "All in one place. Always offline."}
       </p>
       {actions}
@@ -115,7 +115,7 @@ export function Setup({
       <p className="privacy">
         <ShieldCheck size={17} />{" "}
         {cloud
-          ? "Saved to your account. Sign in on another phone to open your farm."
+          ? "Changes save on this phone first. Wait for Synced before opening them on another phone."
           : "Stored on this device. No account needed."}
       </p>
     </main>
