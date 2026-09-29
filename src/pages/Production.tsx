@@ -124,8 +124,10 @@ export function Production({
   state,
   repo,
   refresh,
+  viewProductivity,
 }: {
   state: State;
+  viewProductivity: () => void;
   repo: ProductionRepository;
   refresh: () => Promise<void>;
 }) {
@@ -190,6 +192,12 @@ export function Production({
         title="Daily production"
         subtitle="A little care. A good collection."
       />
+      <button className="full" onClick={viewProductivity}>
+        Cage productivity
+      </button>
+      <p className="hint">
+        Select cages and sort by cage number, productivity, or eggs.
+      </p>
       <div className="toolbar">
         <input
           aria-label="Production date"

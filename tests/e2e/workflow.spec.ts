@@ -405,7 +405,9 @@ test("cage productivity filters, ranking, missing records and daily details", as
     await expect(input).toHaveValue(eggs);
     await expect(page.locator(".production-row").filter({ has: input })).toContainText(`${Number(eggs) / 4 * 100}%`);
   }
-  await more(page, "Reports & cage rankings");
+  await page.getByRole("button", { name: "Cage productivity", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "Cage 001", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Sort cages by")).toBeVisible();
   const table = page.getByRole("table", {
     name: "Cage productivity comparison",
     exact: true,
@@ -419,7 +421,6 @@ test("cage productivity filters, ranking, missing records and daily details", as
   await expect(
     page.locator(".stat").filter({ hasText: "Productivity" }),
   ).toContainText("37.5%");
-  await page.getByText("All cages · Choose cages", { exact: true }).click();
   await page
     .getByRole("button", { name: "Clear selection", exact: true })
     .click();
@@ -474,7 +475,6 @@ test("cage productivity filters, ranking, missing records and daily details", as
   await expect(dataRows).toHaveCount(3);
   await page.getByLabel("Sort cages by").selectOption("lowest");
   await expect(dataRows.last()).toContainText("No record");
-  await page.getByText("All cages · Choose cages", { exact: true }).click();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

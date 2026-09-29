@@ -1138,11 +1138,8 @@ tbody tr:last-child td {
 .install-guide li svg { vertical-align: middle; }
 .install-app button { white-space: normal; text-align: left; min-height: 44px; }
 
-.cage-picker summary {
-  cursor: pointer;
-  padding: 12px 0;
-  font-weight: 600;
-  color: var(--green);
+.cage-picker h3 {
+  margin-top: 16px;
 }
 .selection-actions {
   display: flex;

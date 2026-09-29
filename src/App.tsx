@@ -185,7 +185,13 @@ export function App({
       content = <Home state={state} go={go} />;
       break;
     case "production":
-      content = <Production {...common} repo={production} />;
+      content = (
+        <Production
+          {...common}
+          repo={production}
+          viewProductivity={() => go("reports")}
+        />
+      );
       break;
     case "inventory":
       content = <Inventory state={state} go={go} />;
