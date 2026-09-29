@@ -496,3 +496,48 @@ test("cage productivity filters, ranking, missing records and daily details", as
     fullPage: true,
   });
 });
+
+test("saved age groups compare color warnings and persist across reload", async ({page}, info) => {
+  await setup(page,"4");
+  await tab(page,"Production");
+  for (const [cage, eggs] of [["001","1"],["002","2"],["003","3"]]) {
+    const input = page.getByLabel(`Eggs Cage ${cage}`,{exact:true});
+    await input.fill(eggs);
+    await expect(page.locator(".production-row").filter({has:input})).toContainText(`${Number(eggs)/4*100}%`);
+  }
+  await page.getByRole("button",{name:"Cage productivity",exact:true}).click();
+  for (const [name,notes,cage] of [["Group 1","Older hens – 18 months","001"],["Group 2","Newly added","002"],["Group 3","Peak laying","003"],["Group 4","No entries yet","004"]]) {
+    await page.getByRole("button",{name:"Create group",exact:true}).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Group name",{exact:true}).fill(name);
+    await dialog.getByLabel("Age / batch notes").fill(notes);
+    await dialog.getByRole("checkbox",{name:`Cage ${cage}`,exact:true}).check();
+    await dialog.getByRole("button",{name:"Save group",exact:true}).click();
+    await expect(dialog).toHaveCount(0);
+  }
+  await expect(page.locator(".group-card").nth(0).locator(".productivity-badge")).toHaveClass(/low/);
+  await expect(page.locator(".group-card").nth(1).locator(".productivity-badge")).toHaveClass(/watch/);
+  await expect(page.locator(".group-card").nth(2).locator(".productivity-badge")).toHaveClass(/good/);
+  await expect(page.locator(".group-card").nth(3).locator(".productivity-badge")).toHaveClass(/unrecorded/);
+  await page.getByRole("button",{name:"View cages in Group 1",exact:true}).click();
+  await expect(page.getByRole("table",{name:"Cage productivity comparison",exact:true}).locator("tbody tr")).toHaveCount(1);
+  await page.getByRole("button",{name:"Edit Group 1",exact:true}).click();
+  await page.getByRole("dialog").getByLabel("Group name",{exact:true}).fill("Older batch");
+  await page.getByRole("dialog").getByRole("checkbox",{name:"Cage 002",exact:true}).check();
+  await page.getByRole("dialog").getByRole("button",{name:"Save group",exact:true}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.reload();
+  await more(page,"Reports & cage rankings");
+  await expect(page.getByRole("region",{name:"Group Older batch",exact:true})).toContainText("37.5% · Low");
+  await expect(page.getByRole("region",{name:"Group Older batch",exact:true})).toContainText("Older hens – 18 months");
+  await page.getByRole("button",{name:"Edit Group 4",exact:true}).click();
+  page.once("dialog",d => d.accept());
+  await page.getByRole("button",{name:"Delete group",exact:true}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".group-card")).toHaveCount(3);
+  await expect(page.getByRole("table",{name:"Cage productivity comparison",exact:true}).locator("tbody tr")).toHaveCount(4);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("heading",{name:"Saved cage groups",exact:true}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:info.outputPath("saved-groups.png")});
+  await page.locator(".group-comparison").screenshot({path:info.outputPath("group-comparison.png")});
+});

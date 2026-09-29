@@ -1,3 +1,4 @@
+import type { FarmRepository } from "../repositories/farm";
 import { useState } from "react";
 import type { State } from "../types/models";
 import { Heading, Card, Stat, Empty } from "../components/ui";
@@ -96,7 +97,17 @@ const reportTypes = [
   "Expenses",
   "Profit",
 ];
-export function Reports({ state, back }: { state: State; back: () => void }) {
+export function Reports({
+  state,
+  back,
+  farm,
+  refresh,
+}: {
+  state: State;
+  back: () => void;
+  farm: FarmRepository;
+  refresh: () => Promise<void>;
+}) {
   const [period, setPeriod] = useState<PeriodValue>({
       start: shiftDate(today(), -6),
       end: today(),
@@ -260,7 +271,12 @@ export function Reports({ state, back }: { state: State; back: () => void }) {
         </Card>
       )}
       {type === "Cage Performance" ? (
-        <Productivity state={state} period={period} />
+        <Productivity
+          state={state}
+          period={period}
+          farm={farm}
+          refresh={refresh}
+        />
       ) : (
         <Card>
           <h2>{type}</h2>

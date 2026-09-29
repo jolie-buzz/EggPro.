@@ -19,8 +19,8 @@ export const rowSchemas = {
   farms: z.object({ ...updated, name: key, owner: str }).strict(),
   settings: z
     .object({
-      id: z.enum(["currency", "prices"]),
-      value: str,
+      id: z.enum(["currency", "prices", "cage_groups"]),
+      value: z.string().max(1000000),
       updated_at: time,
     })
     .strict(),

@@ -1,3 +1,6 @@
+import { CageGroups } from "./CageGroups";
+import { ProductivityBadge } from "./ProductivityBadge";
+import type { FarmRepository } from "../repositories/farm";
 import { useState } from "react";
 import type { State } from "../types/models";
 import type { PeriodValue } from "./Period";
@@ -12,7 +15,11 @@ const percent = (value: number | null) =>
 export function Productivity({
   state,
   period,
+  farm,
+  refresh,
 }: {
+  farm: FarmRepository;
+  refresh: () => Promise<void>;
   state: State;
   period: PeriodValue;
 }) {
@@ -57,6 +64,33 @@ export function Productivity({
   return (
     <>
       <Card>
+        <h2>Productivity warnings</h2>
+        <div className="productivity-legend">
+          <span className="productivity-badge good">Good · ≥75%</span>
+          <span className="productivity-badge watch">Watch · 50% to &lt;75%</span>
+          <span className="productivity-badge low">Low · &lt;50%</span>
+          <span className="productivity-badge unrecorded">
+            No record / no rate
+          </span>
+        </div>
+        <p className="hint">
+          These are fixed productivity bands, not age-adjusted targets. Use
+          group age/batch notes and recorded days to interpret the results.
+        </p>
+      </Card>
+      <CageGroups
+        state={state}
+        period={period}
+        farm={farm}
+        refresh={refresh}
+        select={(ids) => {
+          setSelection(ids);
+          document
+            .getElementById("cage-picker")
+            ?.scrollIntoView({ block: "start" });
+        }}
+      />
+      <Card>
         <h2>Cage Performance</h2>
         <p>
           Compare productivity for one cage or a group. Choose your cages and
@@ -71,7 +105,7 @@ export function Productivity({
             <option value="cage">Cage number</option>
           </select>
         </label>
-        <div className="cage-picker">
+        <div className="cage-picker" id="cage-picker">
           <h3>Choose cages</h3>
           <p className="hint">
             Tick one cage or several cages to compare. All cages are selected to
@@ -136,7 +170,10 @@ export function Productivity({
             aria-label="Selected cage summary"
           >
             <Stat label="Total eggs" value={number(report.eggs)} />
-            <Stat label="Productivity" value={percent(report.rate)} />
+            <Stat
+              label="Productivity"
+              value={<ProductivityBadge value={report.rate} />}
+            />
             <Stat
               label="Cages with records"
               value={`${report.recordedCages} / ${selected.length}`}
@@ -178,7 +215,15 @@ export function Productivity({
                       <td>
                         {r.days}/{report.days}
                       </td>
-                      <td>{r.days ? percent(r.rate) : "No record"}</td>
+                      <td>
+                        {r.days ? (
+                          <ProductivityBadge value={r.rate} />
+                        ) : (
+                          <span className="productivity-badge unrecorded">
+                            No record
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -232,7 +277,9 @@ export function Productivity({
                     <td>
                       {day.eggs === null ? "No record" : number(day.eggs)}
                     </td>
-                    <td>{percent(day.rate)}</td>
+                    <td>
+                      <ProductivityBadge value={day.rate} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

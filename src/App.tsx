@@ -222,7 +222,9 @@ export function App({
       content = <Financial state={state} back={back} />;
       break;
     case "reports":
-      content = <Reports state={state} back={back} />;
+      content = (
+        <Reports state={state} back={back} farm={farm} refresh={refresh} />
+      );
       break;
     case "cages":
       content = <Cages {...common} farm={farm} back={back} />;

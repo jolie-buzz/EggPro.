@@ -1204,3 +1204,21 @@ tbody tr:last-child td {
     padding: 16px 10px;
   }
 }
+.productivity-badge {
+  display: inline-block;
+  border-radius: 8px;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.productivity-badge.good { background: #e2f2e7; color: #205940; }
+.productivity-badge.watch { background: #fff1c2; color: #715400; }
+.productivity-badge.low { background: #ffe6e1; color: #922d23; }
+.productivity-badge.unrecorded { background: #ecefec; color: #526057; }
+.productivity-legend { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.group-comparison { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+.group-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; overflow-wrap: anywhere; }
+.group-card p { margin: 10px 0; }
+#cage-picker { scroll-margin-top: 20px; }

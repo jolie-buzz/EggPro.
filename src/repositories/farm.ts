@@ -1,3 +1,4 @@
+import { parseCageGroups, type CageGroup } from "../services/cage-groups";
 import { Database, type Row, type Value } from "../database/database";
 import { tables } from "../database/migrations";
 import type { State, Cage } from "../types/models";
@@ -131,6 +132,41 @@ export class FarmRepository {
           updated_at: now,
         });
       }
+    });
+  }
+  async saveGroup(input: Omit<CageGroup, "id">, groupId?: string) {
+    assert(input.name.trim().length > 0, "Enter a group name.");
+    assert(input.cageIds.length > 0, "Select at least one cage.");
+    return this.changeGroups((groups) => {
+      const group = { ...input, name: input.name.trim(), id: groupId ?? id() };
+      if (groupId)
+        assert(
+          groups.some((g) => g.id === groupId),
+          "Group no longer exists.",
+        );
+      return [...groups.filter((g) => g.id !== group.id), group];
+    });
+  }
+  async deleteGroup(groupId: string) {
+    return this.changeGroups((groups) =>
+      groups.filter((g) => g.id !== groupId),
+    );
+  }
+  private async changeGroups(change: (groups: CageGroup[]) => CageGroup[]) {
+    await this.db.transaction(async () => {
+      const cages = await this.db.query<{ id: string }>("SELECT id FROM cages");
+      const ids = cages.map((c) => c.id);
+      const [setting] = await this.db.query<{ value: string }>(
+        "SELECT value FROM settings WHERE id='cage_groups'",
+      );
+      const groups = change(parseCageGroups(setting?.value, ids));
+      const value = JSON.stringify(groups);
+      assert(value.length <= 1000000, "Too many group details.");
+      parseCageGroups(value, ids);
+      await this.db.execute(
+        "INSERT INTO settings (id,value,updated_at) VALUES ('cage_groups',?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",
+        [value, stamp()],
+      );
     });
   }
   async settings(name: string, owner: string, prices: Record<string, number>) {

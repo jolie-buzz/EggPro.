@@ -1,3 +1,4 @@
+import { parseCageGroups } from "./cage-groups";
 import { auditEggTimeline } from "./egg-ledger";
 import { Capacitor } from "@capacitor/core";
 import { Database, type Row } from "../database/database";
@@ -89,7 +90,17 @@ export async function validateBackup(input: string): Promise<Backup> {
     for (const row of b.data[t]) rowSchemas[t].parse(row);
   }
   assert(b.data.farms.length === 1, "Backup must contain exactly one farm");
-  assert(b.data.settings.length === 2, "Invalid farm settings");
+  assert(
+    b.data.settings.length >= 2 &&
+      b.data.settings.length <= 3 &&
+      new Set(b.data.settings.map((r) => r.id)).size === b.data.settings.length,
+    "Invalid farm settings",
+  );
+  const groups = b.data.settings.find((r) => r.id === "cage_groups")?.value;
+  parseCageGroups(
+    groups === undefined ? undefined : String(groups),
+    b.data.cages.map((c) => String(c.id)),
+  );
   const currency = b.data.settings.find((r) => r.id === "currency")?.value;
   assert(
     typeof currency === "string" &&

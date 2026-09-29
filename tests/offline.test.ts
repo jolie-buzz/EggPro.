@@ -234,3 +234,23 @@ it("allows phone saves during a slow upload and syncs the newer edits next", asy
       ?.document.data.egg_inventory.some((r) => r.id === "During upload"),
   ).toBe(true);
 });
+
+it("keeps saved groups through offline restart and sync to another device", async () => {
+  const SQL = await init(), cloud = server(), disk = cache();
+  let phone = await openOfflineDatabase(SQL, cloud.store, disk.storage);
+  const farm = new FarmRepository(phone.db);
+  await farm.setup(setup);
+  await phone.sync();
+  cloud.setOnline(false);
+  const cage = (await farm.snapshot()).cages[0];
+  await farm.saveGroup({name:"Group 1",notes:"Older hens",cageIds:[cage.id]});
+  expect(phone.status().pending).toBe(true);
+  phone.dispose();
+  phone = await openOfflineDatabase(SQL, cloud.store, disk.storage);
+  expect(JSON.parse((await new FarmRepository(phone.db).snapshot()).settings.cage_groups)[0].name).toBe("Group 1");
+  cloud.setOnline(true);
+  await phone.sync();
+  const other = await openOfflineDatabase(SQL, cloud.store, cache().storage);
+  expect(JSON.parse((await new FarmRepository(other.db).snapshot()).settings.cage_groups)[0]).toMatchObject({name:"Group 1",notes:"Older hens",cageIds:[cage.id]});
+  phone.dispose(); other.dispose();
+});
