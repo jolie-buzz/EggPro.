@@ -3,9 +3,9 @@ import type { State } from "../types/models";
 import { Heading, Card, Stat, Empty } from "../components/ui";
 import { Period, type PeriodValue } from "../components/Period";
 import { Chart } from "../components/Chart";
+import { Productivity } from "../components/Productivity";
 import {
   totals,
-  rankings,
   productionSeries,
   customerBalance,
 } from "../services/analytics";
@@ -101,7 +101,7 @@ export function Reports({ state, back }: { state: State; back: () => void }) {
       start: shiftDate(today(), -6),
       end: today(),
     }),
-    [type, setType] = useState("Daily Production");
+    [type, setType] = useState("Cage Performance");
   const cash = (n: number) => money(n, state.settings.currency),
     t = totals(state, period.start, period.end),
     inside = (r: { date: string }) =>
@@ -137,14 +137,6 @@ export function Reports({ state, back }: { state: State; back: () => void }) {
       date,
       g.eggs,
       g.days ? `${number(g.rate / g.days)}%` : "No record",
-    ]);
-  } else if (type === "Cage Performance") {
-    headers = ["Cage", "Recorded days", "Eggs", "Avg. rate"];
-    rows = rankings(state, period.start, period.end).map((r) => [
-      `Cage ${r.cage.cage_number}`,
-      r.days,
-      r.eggs,
-      `${number(r.rate)}%`,
     ]);
   } else if (type === "Feed Consumption") {
     headers = ["Date", "Feed", "Kg", "Cost"];
@@ -241,7 +233,6 @@ export function Reports({ state, back }: { state: State; back: () => void }) {
       ["Estimated operating profit", cash(t.operatingProfit)],
     ];
   }
-  const ranking = rankings(state, period.start, period.end);
   return (
     <>
       <Heading
@@ -268,66 +259,46 @@ export function Reports({ state, back }: { state: State; back: () => void }) {
           </p>
         </Card>
       )}
-      {type === "Cage Performance" && (
-        <div className="grid2">
-          <Card>
-            <h3>Best cages</h3>
-            {ranking.slice(0, 3).map((r) => (
-              <p key={r.cage.id}>
-                Cage {r.cage.cage_number} ·{" "}
-                <strong className="good">{number(r.rate)}%</strong>
-              </p>
-            ))}
-          </Card>
-          <Card>
-            <h3>Lowest cages</h3>
-            {[...ranking]
-              .reverse()
-              .slice(0, 3)
-              .map((r) => (
-                <p key={r.cage.id}>
-                  Cage {r.cage.cage_number} · <strong>{number(r.rate)}%</strong>
-                </p>
-              ))}
-          </Card>
-        </div>
-      )}
-      <Card>
-        <h2>{type}</h2>
-        <p>
-          {period.start} to {period.end}
-          {type === "Egg Inventory" || type === "Receivables"
-            ? " · balance as of end date"
-            : ""}
-        </p>
-        {rows.length ? (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  {headers.map((h) => (
-                    <th key={h}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i}>
-                    {r.map((v, j) => (
-                      <td key={j}>{v}</td>
+      {type === "Cage Performance" ? (
+        <Productivity state={state} period={period} />
+      ) : (
+        <Card>
+          <h2>{type}</h2>
+          <p>
+            {period.start} to {period.end}
+            {type === "Egg Inventory" || type === "Receivables"
+              ? " · balance as of end date"
+              : ""}
+          </p>
+          {rows.length ? (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    {headers.map((h) => (
+                      <th key={h}>{h}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty
-            title="No records in this period"
-            detail="Try another date range or add your first record."
-          />
-        )}
-      </Card>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i}>
+                      {r.map((v, j) => (
+                        <td key={j}>{v}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty
+              title="No records in this period"
+              detail="Try another date range or add your first record."
+            />
+          )}
+        </Card>
+      )}
     </>
   );
 }

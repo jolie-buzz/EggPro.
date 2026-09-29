@@ -1137,3 +1137,73 @@ tbody tr:last-child td {
 .install-guide li { margin: 10px 0; line-height: 1.6; }
 .install-guide li svg { vertical-align: middle; }
 .install-app button { white-space: normal; text-align: left; min-height: 44px; }
+
+.cage-picker summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-weight: 600;
+  color: var(--green);
+}
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.cage-options {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.cage-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.cage-option input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--green);
+}
+.cage-name {
+  display: block;
+  color: var(--muted);
+}
+.productivity-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.productivity-table {
+  table-layout: fixed;
+  white-space: normal;
+}
+.productivity-table th,
+.productivity-table td {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 759px) {
+  .productivity-table th,
+  .productivity-table td {
+    padding: 12px 5px;
+  }
+  .productivity-table th {
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+  .productivity-table td,
+  .productivity-table button {
+    font-size: 12px;
+  }
+  .productivity-table th:nth-child(1) { width: 26%; }
+  .productivity-table th:nth-child(2) { width: 17%; }
+  .productivity-table th:nth-child(3) { width: 28%; }
+  .productivity-table th:nth-child(4) { width: 29%; }
+  .productivity-stats .stat {
+    padding: 16px 10px;
+  }
+}

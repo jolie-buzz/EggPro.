@@ -84,8 +84,10 @@ export function rankings(s: State, start: string, end: string) {
         cage: c,
         days: rows.length,
         rate: rows.length
-          ? sum(rows, (r) => rate(r.egg_count, r.hen_count_snapshot)) /
-            rows.length
+          ? rate(
+              sum(rows, (r) => r.egg_count),
+              sum(rows, (r) => r.hen_count_snapshot),
+            )
           : 0,
         eggs: sum(rows, (r) => r.egg_count),
       };

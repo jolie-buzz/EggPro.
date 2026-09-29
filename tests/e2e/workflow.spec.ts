@@ -388,3 +388,110 @@ test("custom egg size preserves draft counts and works across stock, sales and r
   await more(page, "Farm settings");
   await expect(page.getByLabel("Jumbo", { exact: true })).toHaveValue("300");
 });
+
+test("cage productivity filters, ranking, missing records and daily details", async ({
+  page,
+}, info) => {
+  await setup(page, "3");
+  await tab(page, "Production");
+  for (const [cage, eggs] of [
+    ["001", "3"],
+    ["002", "0"],
+  ]) {
+    const input = page.getByLabel(`Eggs Cage ${cage}`, { exact: true });
+    await input.fill("");
+    await input.fill(eggs);
+    await input.press("Tab");
+    await expect(input).toHaveValue(eggs);
+    await expect(page.locator(".production-row").filter({ has: input })).toContainText(`${Number(eggs) / 4 * 100}%`);
+  }
+  await more(page, "Reports & cage rankings");
+  const table = page.getByRole("table", {
+    name: "Cage productivity comparison",
+    exact: true,
+  });
+  const dataRows = table.locator("tbody tr");
+  await expect(dataRows).toHaveCount(3);
+  await expect(dataRows.nth(0)).toContainText("Cage 002");
+  await expect(dataRows.nth(0)).toContainText("0%");
+  await expect(dataRows.nth(1)).toContainText("75%");
+  await expect(dataRows.nth(2)).toContainText("No record");
+  await expect(
+    page.locator(".stat").filter({ hasText: "Productivity" }),
+  ).toContainText("37.5%");
+  await page.getByText("All cages · Choose cages", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Clear selection", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Select cages to view productivity" }),
+  ).toBeVisible();
+  await page.getByRole("checkbox", { name: "Cage 001", exact: true }).check();
+  await expect(dataRows).toHaveCount(1);
+  await expect(
+    page.locator(".stat").filter({ hasText: "Productivity" }),
+  ).toContainText("75%");
+  await page.getByLabel("Search cages to compare").fill("002");
+  await expect(page.getByRole("checkbox")).toHaveCount(1);
+  await page.getByRole("checkbox", { name: "Cage 002", exact: true }).check();
+  await expect(dataRows).toHaveCount(2);
+  await expect(
+    page.locator(".stat").filter({ hasText: "Productivity" }),
+  ).toContainText("37.5%");
+  await page.getByLabel("Search cages to compare").fill("missing");
+  await expect(
+    page.getByText("No matching cages.", { exact: true }),
+  ).toBeVisible();
+  await expect(dataRows).toHaveCount(2);
+  await page.getByLabel("Search cages to compare").fill("");
+  await page.getByLabel("Sort cages by").selectOption("highest");
+  await expect(dataRows.first()).toContainText("Cage 001");
+  await page.getByLabel("Sort cages by").selectOption("eggs");
+  await expect(dataRows.first()).toContainText("Cage 001");
+  await page.getByLabel("Sort cages by").selectOption("cage");
+  await expect(dataRows.first()).toContainText("Cage 001");
+  await page.getByRole("button", { name: "Cage 001", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page
+      .getByRole("table", { name: "Daily cage productivity" })
+      .locator("tbody tr"),
+  ).toHaveCount(7);
+  await expect(page.getByRole("dialog")).toContainText("No record");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(dataRows.first()).toContainText("1/1");
+  await page.getByRole("button", { name: "30 days", exact: true }).click();
+  await expect(dataRows.first()).toContainText("1/30");
+  await page
+    .getByLabel("From date")
+    .fill(await page.getByLabel("To date").inputValue());
+  await expect(dataRows.first()).toContainText("1/1");
+  await page
+    .getByRole("button", { name: "Select all cages", exact: true })
+    .click();
+  await expect(dataRows).toHaveCount(3);
+  await page.getByLabel("Sort cages by").selectOption("lowest");
+  await expect(dataRows.last()).toContainText("No record");
+  await page.getByText("All cages · Choose cages", { exact: true }).click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  expect(await table.evaluate((el) => el.scrollWidth <= el.parentElement!.clientWidth)).toBe(true);
+  await page.screenshot({
+    path: info.outputPath("productivity-mobile.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: info.outputPath("productivity-desktop.png"),
+    fullPage: true,
+  });
+});
