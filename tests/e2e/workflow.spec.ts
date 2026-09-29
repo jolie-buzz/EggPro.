@@ -458,6 +458,7 @@ test("cage productivity filters, ranking, missing records and daily details", as
       .locator("tbody tr"),
   ).toHaveCount(7);
   await expect(page.getByRole("dialog")).toContainText("No record");
+  await expect(page.getByRole("dialog").locator(".bar").first()).toHaveCSS("height", "0px");
   await page.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("button", { name: "Today", exact: true }).click();
   await expect(dataRows.first()).toContainText("1/1");

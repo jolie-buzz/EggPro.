@@ -25,6 +25,7 @@ export function Chart({
               className="bar"
               style={{
                 height: `${d.eggs === null ? 0 : Math.max(2, (d.eggs / max) * 100)}%`,
+                minHeight: d.eggs === null ? 0 : undefined,
                 opacity: i === data.length - 1 ? 1 : 0.65,
               }}
             />
