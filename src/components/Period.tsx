@@ -11,27 +11,30 @@ export function Period({
 }) {
   const date = today();
   const weekday = (new Date(date + "T12:00:00").getDay() + 6) % 7;
-  const options = financial
-    ? [
-        ["Today", date],
-        ["This week", shiftDate(date, -weekday)],
-        ["This month", date.slice(0, 7) + "-01"],
-      ]
-    : [
-        ["Today", date],
-        ["7 days", shiftDate(date, -6)],
-        ["30 days", shiftDate(date, -29)],
-      ];
+  const week = shiftDate(date, -weekday);
+  const options = [
+    ["Today", date, date],
+    ["Yesterday", shiftDate(date, -1), shiftDate(date, -1)],
+    ["This week", week, date],
+    ["Last week", shiftDate(week, -7), shiftDate(week, -1)],
+    ["This month", date.slice(0, 7) + "-01", date],
+    ...(financial
+      ? []
+      : [
+          ["7 days", shiftDate(date, -6), date],
+          ["30 days", shiftDate(date, -29), date],
+        ]),
+  ];
   return (
     <div className="period">
       <div className="segmented">
-        {options.map(([label, start]) => (
+        {options.map(([label, start, end]) => (
           <button
             key={label}
             className={
-              value.start === start && value.end === date ? "selected" : ""
+              value.start === start && value.end === end ? "selected" : ""
             }
-            onClick={() => onChange({ start, end: date })}
+            onClick={() => onChange({ start, end })}
           >
             {label}
           </button>

@@ -511,6 +511,9 @@ test("saved age groups compare color warnings and persist across reload", async 
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Group name",{exact:true}).fill(name);
     await dialog.getByLabel("Age / batch notes").fill(notes);
+    await dialog.getByLabel("Search group cages").fill(cage);
+    await dialog.getByLabel("Search group cages").press("Enter");
+    await expect(dialog).toBeVisible(); // Enter filters, never saves
     await dialog.getByRole("checkbox",{name:`Cage ${cage}`,exact:true}).check();
     await dialog.getByRole("button",{name:"Save group",exact:true}).click();
     await expect(dialog).toHaveCount(0);
@@ -519,6 +522,7 @@ test("saved age groups compare color warnings and persist across reload", async 
   await expect(page.locator(".group-card").nth(1).locator(".productivity-badge")).toHaveClass(/watch/);
   await expect(page.locator(".group-card").nth(2).locator(".productivity-badge")).toHaveClass(/good/);
   await expect(page.locator(".group-card").nth(3).locator(".productivity-badge")).toHaveClass(/unrecorded/);
+  await expect(page.getByRole("img",{name:/^Group 3 daily productivity: .*75%/})).toBeVisible();
   await page.getByRole("button",{name:"View cages in Group 1",exact:true}).click();
   await expect(page.getByRole("table",{name:"Cage productivity comparison",exact:true}).locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button",{name:"Edit Group 1",exact:true}).click();

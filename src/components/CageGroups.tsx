@@ -7,6 +7,7 @@ import { number } from "../utils/calculations";
 import type { PeriodValue } from "./Period";
 import { Card, Field, Form, Modal, str, errorMessage } from "./ui";
 import { ProductivityBadge } from "./ProductivityBadge";
+import { Chart } from "./Chart";
 
 export function CageGroups({
   state,
@@ -83,6 +84,14 @@ export function CageGroups({
                   {report.cages.reduce((n, c) => n + c.days, 0)}/
                   {report.cages.length * report.days} cage-day entries
                 </p>
+                <Chart
+                  data={report.series.map((d) => ({
+                    date: d.date,
+                    eggs: d.rate,
+                  }))}
+                  unit="%"
+                  label={`${group.name} daily productivity`}
+                />
                 <div className="selection-actions">
                   <button
                     onClick={() => select(group.cageIds)}
@@ -144,6 +153,8 @@ export function CageGroups({
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                // Enter filters; it must not submit (save) the group form.
+                onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
               />
             </Field>
             <p>{members.length} cages selected</p>

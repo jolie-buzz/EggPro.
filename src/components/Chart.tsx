@@ -1,21 +1,27 @@
 import { number } from "../utils/calculations";
 export function Chart({
   data,
+  unit = "eggs",
+  label = "Egg production",
 }: {
   data: { date: string; eggs: number | null }[];
+  unit?: string;
+  label?: string;
 }) {
-  const max = Math.max(1, ...data.map((d) => d.eggs ?? 0));
+  // "%" charts scale to 100 so groups are comparable side by side.
+  const max = Math.max(unit === "%" ? 100 : 1, ...data.map((d) => d.eggs ?? 0));
+  const fmt = (v: number) => (unit === "%" ? `${number(v)}%` : `${v} ${unit}`);
   return (
     <div
       className="chart"
       role="img"
-      aria-label={`Egg production: ${data.map((d) => `${d.date}: ${d.eggs === null ? "No record" : d.eggs}`).join(", ")}`}
+      aria-label={`${label}: ${data.map((d) => `${d.date}: ${d.eggs === null ? "No record" : fmt(d.eggs)}`).join(", ")}`}
     >
       {data.map((d, i) => (
         <div
           className="chart-column"
           key={d.date}
-          title={`${d.date}: ${d.eggs === null ? "No record" : `${d.eggs} eggs`}`}
+          title={`${d.date}: ${d.eggs === null ? "No record" : fmt(d.eggs)}`}
         >
           <span>
             {data.length <= 14 ? (d.eggs === null ? "—" : number(d.eggs)) : ""}

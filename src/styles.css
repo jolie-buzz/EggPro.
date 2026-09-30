@@ -705,6 +705,7 @@ summary {
 }
 .segmented {
   display: flex;
+  flex-wrap: wrap;
   background: #e8ecdf;
   border-radius: 11px;
   padding: 4px;
@@ -713,7 +714,7 @@ summary {
 .segmented button {
   border: 0;
   background: none;
-  flex: 1;
+  flex: 1 0 auto;
   font-size: 12px;
   min-height: 40px;
   padding: 7px;
